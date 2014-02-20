@@ -1,0 +1,195 @@
+//
+//  SSVViewController.m
+//  SecondScrollView
+//
+//  Created by yrnunez on 4/02/14.
+//  Copyright (c) 2014 yrnunez. All rights reserved.
+//
+
+#import "SSVViewController.h"
+#import "Chapter.h"
+#import "QuartzCore/QuartzCore.h"
+
+@interface SSVViewController ()
+
+- (void) loadPropertiesFile;
+
+@end
+
+@implementation SSVViewController
+
+
+- (void)loadPropertiesFile
+{
+    NSArray *allContent = [[NSArray alloc] initWithContentsOfFile:[[NSBundle mainBundle] pathForResource:@"properties" ofType:@"plist"]];
+    
+    self.chapters = [[NSMutableArray alloc] init];
+    
+    for (NSDictionary *chapterContent in allContent)
+    {
+        Chapter *tmpChapter = [[Chapter alloc] init];
+        NSString *chapterImage = [chapterContent objectForKey:@"ChapterImage"];;
+        NSMutableArray* pages =  [NSMutableArray arrayWithArray:[chapterContent objectForKey:@"Pages"] ];
+        
+        [pages insertObject:chapterImage atIndex:0];
+        tmpChapter.pages = pages;
+        tmpChapter.imageName = chapterImage;
+        
+        [self.chapters addObject:tmpChapter];
+    }
+}
+
+/*
+- (void) printContents
+{
+    for (int i = 0; i < [self.chapters count]; i++)
+    {
+        Chapter *tmp = [self.chapters objectAtIndex:i];
+        NSLog(@"chapterImage: %@", tmp.imageName);
+        for ( int j = 0; j < [tmp.pages count]; j++)
+        {
+            NSString *tmp2 = [tmp.pages objectAtIndex:j];
+            NSLog(@"       %@", tmp2);
+        }
+    }
+}
+*/
+
+- (void) loadMainScrollWithOffset: (int) xOffset
+{
+    CGSize mainScrollSize = self.mainScroll.frame.size;
+    self.mainScroll.contentSize = CGSizeMake(mainScrollSize.width * [self.chapters count], mainScrollSize.height);
+    
+    for (int index = 0; index < [self.chapters count]; index++)
+    {
+        Chapter *tmp = [self.chapters objectAtIndex:index];
+        
+        UIImageView *img = [[UIImageView alloc] init];
+        img.bounds = CGRectMake(0, 0, mainScrollSize.width, mainScrollSize.height);
+        
+        img.frame = CGRectMake(xOffset, 0, mainScrollSize.width, mainScrollSize.height);
+        NSLog(@"image: %@", tmp.imageName);
+        img.image = [UIImage imageNamed: tmp.imageName ];
+        self.mainScroll.contentSize = CGSizeMake(mainScrollSize.width + xOffset, mainScrollSize.height);
+        [self.mainScroll addSubview: img ];
+        xOffset += mainScrollSize.width;
+    }
+}
+
+
+- (void) loadSecondScrollWithOffset: (int)xOffset
+{
+    int totalPages = 0;
+    for (int i = 0; i < [self.chapters count]; i++)
+    {
+        Chapter *tmp = [self.chapters objectAtIndex:i];
+        totalPages += [tmp.pages count];
+    }
+    
+    NSLog(@"pages: %i",totalPages);
+    CGSize scrollSize = self.secondScroll.frame.size;
+    scrollSize.width = SECOND_IMAGE_WIDTH;
+    
+    self.secondScroll.contentSize = CGSizeMake(scrollSize.width * totalPages, scrollSize.height);
+    
+    for (int chapter = 0; chapter < [self.chapters count] ; chapter++)
+    {
+        Chapter *tmp = [self.chapters objectAtIndex:chapter];
+        for (int index = 0; index < [tmp.pages count]; index++)
+        {
+            UIImageView *img = [[UIImageView alloc] init];
+            img.bounds = CGRectMake(0, 0, scrollSize.width, scrollSize.height);
+            
+            img.frame = CGRectMake(xOffset, 0, scrollSize.width, scrollSize.height);
+            NSString * stringName = [tmp.pages objectAtIndex:index];
+            //NSLog(@"image: %@",stringName);
+            img.image = [UIImage imageNamed:stringName];
+            img.backgroundColor = [UIColor whiteColor];
+            self.secondScroll.contentSize = CGSizeMake(scrollSize.width + xOffset, scrollSize.height);
+            [self.secondScroll addSubview: img ];
+            xOffset += scrollSize.width;
+        }
+    }
+    
+}
+
+
+- (void)viewDidLoad
+{
+    [super viewDidLoad];
+
+    
+    [self loadPropertiesFile];
+    //[self printContents];
+    
+    self.mainScroll.frame = CGRectMake(MAIN_ORIGIN_X, MAIN_ORIGIN_Y, MAIN_WIDTH, MAIN_HEIGHT);
+    self.secondScroll.frame = CGRectMake(SECOND_ORIGIN_X, SECOND_ORIGIN_Y, SECOND_WIDTH, SECOND_HEIGHT);
+
+    self.pageControl.numberOfPages = [self.chapters count];
+    self.currentPage = 0;
+    self.pageControl.currentPage = self.currentPage;
+}
+
+- (void)viewWillAppear:(BOOL)animated
+{
+    [super viewWillAppear:animated];
+  
+    self.secondScroll.decelerationRate = UIScrollViewDecelerationRateFast;
+    [self loadMainScrollWithOffset:0];
+    [self loadSecondScrollWithOffset:0];
+}
+
+/*
+ - (void) updateSecondScrollPositions
+ {
+ CGSize mainScrollContentSize = self.mainScroll.contentSize;
+ CGSize mainScrollFrame = self.mainScroll.frame.size;
+ if ( fmodf(mainScrollContentSize.width, mainScrollFrame.width) == 0)
+ {
+ CGPoint secondScrollOffset = self.secondScroll.contentOffset;
+ 
+ int prevImages = 0;
+ for (int i = 0; i < self.pageControl.currentPage; i++)
+ {
+ Chapter *tmp = [self.chapters objectAtIndex:i];
+ prevImages += [tmp.pages count];
+ }
+ 
+ secondScrollOffset.x =  prevImages * SECOND_IMAGE_WIDTH;
+ 
+ [self.secondScroll setContentOffset:secondScrollOffset animated:YES];
+ }
+ }
+ */
+
+- (NSInteger) getPagesOffsetWithCurrentPage:(NSInteger) page
+{
+    NSInteger pagesOffset = 0;
+    for (int i = 0; i < page; i++)
+    {
+        Chapter *tmp = [self.chapters objectAtIndex:i];
+        pagesOffset += [tmp.pages count];
+    }
+    return pagesOffset * SECOND_IMAGE_WIDTH;
+}
+
+- (void)scrollViewDidScroll:(UIScrollView *)scrollView
+{
+    NSInteger pagesOffset = [self getPagesOffsetWithCurrentPage: self.currentPage];
+    
+    if(self.mainScroll.isTracking)
+    {
+        CGPoint secondScrollOffset = self.secondScroll.contentOffset;
+        secondScrollOffset.x = scrollView.contentOffset.x;
+        [self.secondScroll setContentOffset:secondScrollOffset animated:YES];
+    }
+}
+
+
+- (void)didReceiveMemoryWarning
+{
+    [super didReceiveMemoryWarning];
+    // Dispose of any resources that can be recreated.
+}
+
+@end
